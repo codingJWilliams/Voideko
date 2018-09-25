@@ -15,8 +15,11 @@ using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
 
+
 namespace NadekoBot.Modules.Gambling
 {
+    
+    
     public partial class Gambling : GamblingTopLevelModule<GamblingService>
     {
         private readonly DbService _db;
@@ -24,11 +27,12 @@ namespace NadekoBot.Modules.Gambling
         private readonly IDataCache _cache;
         private readonly DiscordSocketClient _client;
         private readonly IBotConfigProvider _bc;
-
+        private static bool AlreadyRegistered = false;
         private string CurrencyName => Bc.BotConfig.CurrencyName;
         private string CurrencyPluralName => Bc.BotConfig.CurrencyPluralName;
         private string CurrencySign => Bc.BotConfig.CurrencySign;
 
+        
         public Gambling(DbService db, ICurrencyService currency,
             IDataCache cache, DiscordSocketClient client, IBotConfigProvider bc)
         {
@@ -37,6 +41,16 @@ namespace NadekoBot.Modules.Gambling
             _cache = cache;
             _client = client;
             _bc = bc;
+            
+            // We only want to register the listener on the first call of the cons
+            if (AlreadyRegistered) return;
+            
+            // If it's the first time, immediately set it to true
+            AlreadyRegistered = true;
+            
+            // Call VoidAdditions
+            var va = new VoidAdditions(_cs, _client, _db, _log);
+
         }
 
         public long GetCurrency(ulong id)
