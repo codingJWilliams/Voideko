@@ -4,7 +4,9 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
 using NadekoBot.Core.Services;
+using NadekoBot.Core.Services.Impl;
 using NLog;
+using Octokit;
 
 namespace NadekoBot.Modules.Gambling
 {
@@ -22,30 +24,22 @@ namespace NadekoBot.Modules.Gambling
             _client = client;
             _db = db;
             
-            
-            WebServer ws = new WebServer(SendResponse, "http://localhost:9000/api/");
+            var ws = new WebServer(SendResponse, "http://localhost:9000/api/");
             ws.Run();
             
             // Add listener for user joining
-            client.UserJoined += (user) =>
+            client.UserJoined += async (user) =>
             {
-                // Get user from the DB if they exist, else create a new blank record for dem
-                var duser = db.UnitOfWork.DiscordUsers.GetOrCreate(user);
-                log.Info("Created / retrieved user " + user.Id.ToString() + " in/from DB");
-                var amount = 25000 - duser.CurrencyAmount;
-                if (amount > 0)
-                {
-                    log.Info("Awarded " + amount.ToString() + " to user");
-                    currency.AddAsync(user, "Initial Currency", amount);
-                }
-                else
-                {
-                    log.Info("Nicked " + amount.ToString() + " from user");
-                    currency.RemoveAsync(user, "Initial Currency", 0 - amount);
-                }
-                return Task.CompletedTask;
+                // Ensure they from correct guild
+                if (user.Guild.Id.ToString() != NadekoBot.CurrencyOnJoinGuild) return;
+
+                // Set their bal to correct value
+                await SetBal(user, NadekoBot.CurrencyOnJoin, "Initial Currency");
+                
+                log.Info("Processed new user: " + user.Id);
             };
         }
+        
         private static async Task Award(IUser user, long amount, string reason = "NadekoConnector Award", 
             bool sendMessage = false)
         {
@@ -60,24 +54,34 @@ namespace NadekoBot.Modules.Gambling
 
         private static long GetBal(IUser user)
         {
-            var duser = _db.UnitOfWork.DiscordUsers.GetOrCreate(user);
-            return duser.CurrencyAmount;
+            using (var uow = _db.UnitOfWork)
+            {
+                var duser = uow.DiscordUsers.GetOrCreate(user);
+                uow.Complete();
+                
+                return duser.CurrencyAmount;
+            }
         }
 
         private static async Task SetBal(IUser user, long amount, string reason = "NadekoConnector SetBal", bool sendMessage = false)
         {
-            long userBal = GetBal(user);
-            long difference = amount - userBal;
+            var userBal = GetBal(user);
+            var difference = amount - userBal;
+            // If they already have the intended amount, don't bother
             if (difference == 0) return;
+            
+            // If the difference is greater than 0 we have to Award, else we have to Take
             if (difference > 0)
             {
-                Award(user, difference, reason, sendMessage);
+                await Award(user, difference, reason, sendMessage);
             }
             else
             {
-                Take(user, difference, reason, sendMessage);
+                await Take(user, difference, reason, sendMessage);
             }            
         }
+        
+        // HTTP request handler
         private static string SendResponse(HttpListenerRequest request)
         {
             var method = request.QueryString.Get("method");
@@ -96,7 +100,7 @@ namespace NadekoBot.Modules.Gambling
                     var sendMessage = request.QueryString.Get("sendMessage") != null && bool.Parse(request.QueryString.Get("sendMessage"));
                     var amount = long.Parse(request.QueryString.Get("amount"));
 
-                    SetBal(user, amount, reason, sendMessage).RunSynchronously();
+                    SetBal(user, amount, reason, sendMessage);
                     return "ok";
                 }
                 case "award":
@@ -106,7 +110,7 @@ namespace NadekoBot.Modules.Gambling
                     var sendMessage = request.QueryString.Get("sendMessage") != null && bool.Parse(request.QueryString.Get("sendMessage"));
                     var amount = long.Parse(request.QueryString.Get("amount"));
 
-                    Award(user, amount, reason, sendMessage).RunSynchronously();
+                    Award(user, amount, reason, sendMessage);
                     return "ok";
                 }
                 case "take":
@@ -116,7 +120,7 @@ namespace NadekoBot.Modules.Gambling
                     var sendMessage = request.QueryString.Get("sendMessage") != null && bool.Parse(request.QueryString.Get("sendMessage"));
                     var amount = long.Parse(request.QueryString.Get("amount"));
 
-                    Take(user, amount, reason, sendMessage).RunSynchronously();
+                    Take(user, amount, reason, sendMessage);
                     return "ok";
                 }
                 default:

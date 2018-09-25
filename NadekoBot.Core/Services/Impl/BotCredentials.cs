@@ -45,6 +45,8 @@ namespace NadekoBot.Core.Services.Impl
         public string VotesToken { get; }
         public string BotListToken { get; }
         public string RedisOptions { get; }
+        public int CurrencyOnJoin { get; }
+        public string CurrencyOnJoinGuild { get; }
 
         public BotCredentials()
         {
@@ -85,6 +87,9 @@ namespace NadekoBot.Core.Services.Impl
                 VotesToken = data[nameof(VotesToken)];
                 VotesUrl = data[nameof(VotesUrl)];
                 BotListToken = data[nameof(BotListToken)];
+                CurrencyOnJoin = !string.IsNullOrWhiteSpace(data[nameof(CurrencyOnJoin)]) ? int.Parse(data[nameof(CurrencyOnJoin)]) : 25000;
+                CurrencyOnJoinGuild = data[nameof(CurrencyOnJoinGuild)];
+                
 
                 var restartSection = data.GetSection(nameof(RestartCommand));
                 var cmd = restartSection["cmd"];

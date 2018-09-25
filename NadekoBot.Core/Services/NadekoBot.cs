@@ -43,6 +43,8 @@ namespace NadekoBot
          * I'll keep this for now */
         public static Color OkColor { get; set; }
         public static Color ErrorColor { get; set; }
+        public static int CurrencyOnJoin { get; set; }
+        public static string CurrencyOnJoinGuild { get; set; }
 
         public TaskCompletionSource<bool> Ready { get; private set; } = new TaskCompletionSource<bool>();
 
@@ -102,6 +104,8 @@ namespace NadekoBot
                 _botConfig = uow.BotConfig.GetOrCreate();
                 OkColor = new Color(Convert.ToUInt32(_botConfig.OkColor, 16));
                 ErrorColor = new Color(Convert.ToUInt32(_botConfig.ErrorColor, 16));
+                CurrencyOnJoin = Credentials.CurrencyOnJoin;
+                CurrencyOnJoinGuild = Credentials.CurrencyOnJoinGuild;
                 uow.Complete();
             }
 
